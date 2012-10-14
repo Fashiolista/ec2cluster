@@ -2,6 +2,7 @@ import json
 import boto
 import dns
 import os
+import subprocess
 
 
 # TODO move to settings
@@ -48,7 +49,8 @@ class BaseCluster(object):
     def get_metadata(self):
         raise NotImplementedError
 
-    def __init__(self):
+    def __init__(self, settings=None):
+        self.settings = settings
         self.metadata = self.get_metadata()
         self.master_cname = self.get_master_cname()
         self.roles = self.get_roles()
@@ -93,7 +95,7 @@ class BaseCluster(object):
     def prepare_master(self):
         """ Initialise the master server.
         """
-        self.acquire_master_cname()
+        raise NotImplementedError
 
     def prepare_slave(self):
         """ Initialise the slave server.
@@ -102,6 +104,12 @@ class BaseCluster(object):
 
     def acquire_master_cname(self):
         """ Updates the master CNAME to point to this instance's public DNS name.
+        """
+        raise NotImplementedError
+
+    def release_master_cname(self):
+        """ Deletes the master CNAME if it is pointing to this instance. Called when
+            the master process fails to start.
         """
         raise NotImplementedError
 
@@ -114,11 +122,34 @@ class BaseCluster(object):
         raise NotImplementedError
 
     def process_started(self):
-        if self.role == MASTER:
+        if self.role == self.MASTER:
             self.acquire_master_cname()
 
     def process_failed(self):
         print 'oh shit something broke'
+
+
+# TODO settings
+SERVICE_NAME = 'testservice'
+MASTER_SCRIPT = '/tmp/master.py'
+SLAVE_SCRIPT = '/tmp/slave.py'
+
+class ScriptCluster(BaseCluster):
+    """ Basic cluster - simply runs scripts when preparing a master/slave, and
+        starts a service via init.d scripts.
+    """
+    def start_process(self):
+        subprocess.check_call(['/etc/init.d/%s' % SERVICE_NAME, 'start'])
+
+    def prepare_master(self):
+        subprocess.check_call([MASTER_SCRIPT, ])
+
+    def prepare_slave(self):
+        subprocess.check_call([SLAVE_SCRIPT, ])
+
+    def poll_process(self):
+        self.process_started()
+
 
 
 # TODO move to settings
@@ -134,7 +165,9 @@ class PostgresqlCluster(BaseCluster):
         Slave: Writes a recovery.conf file and starts postgres as a read slave
     """
     def start_process(self):
-        pass
+        """ Starts postgresql using the init.d scripts.
+        """
+        subprocess.check_call(['/etc/init.d/postgresql', 'start'])
 
     def poll_process(self):
         pass
@@ -143,11 +176,16 @@ class PostgresqlCluster(BaseCluster):
         """ Using the template specified in settings, create a recovery.conf file in the
             postgres config dir.
         """
+        template = open(self.settings['recovery_template'], 'r').read()
+        output = open(self.settings.RECOVERY_FILENAME, 'w')
+        output.write(template % self.metadata)
+        output.close()
+            
 
     def prepare_master(self):
         """ Init postgres as a master.
         """
-        pass
+        return True
 
     def prepare_slave(self):
         """ Init postgres as a read-slave by writing a recovery.conf file.
