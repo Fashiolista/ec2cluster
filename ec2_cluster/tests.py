@@ -54,26 +54,35 @@ class ScriptClusterTest(BaseTest):
     determine_role=mock.DEFAULT,
     get_metadata=mock.DEFAULT,
     acquire_master_cname=mock.DEFAULT,
+    write_recovery_conf=mock.DEFAULT,
+
 )
 @patch.multiple('subprocess',
     check_call=mock.DEFAULT
 )
 class PostgresqlClusterTest(BaseTest):
+    """ Tests a postgresql cluster.
+
+        Example recovery template file:
+            standby_mode = on
+            recovery_target_timeline = latest
+            pause_at_recovery_target = false
+            restore_command = '/usr/bin/s3cmd --config=/var/lib/postgresql/.s3cfg get s3://%(cluster)s/archive/wal/%%f %%p'
+            primary_conninfo = 'host=%(master_cname)s port=5432 user=postgres password=secret sslmode=disable
+    """
 
     def setUp(self):
         self.settings = {
-            'recovery_template': '/tmp/recovery.tmp'
+            'recovery_template': '/tmp/recovery.tmp',
+            'recovery_filename': '/tmp/recovery.conf'
         }
-
-        recovery_template = open(self.settings['recovery_template'], 'w')
-        recovery_template.write('test')
-        recovery_template.close()
     
     def test_init_master(self, *args, **kwargs):
         kwargs['determine_role'].return_value = BaseCluster.MASTER
         kwargs['get_metadata'].return_value = self.get_metadata()
         self.cluster = PostgresqlCluster()
         self.cluster.initialise()
+        kwargs['configure_cron_backup'].assert_called_with()
 
     def test_init_slave(self, *args, **kwargs):
         kwargs['determine_role'].return_value = BaseCluster.SLAVE

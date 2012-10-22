@@ -3,11 +3,11 @@ import boto
 import dns
 import os
 import subprocess
+from crontab import CronTab
 
 
 # TODO move to settings
 MASTER_CNAME = 'master.%(cluster)s.example.com'
-
 
 
 class EC2Mixin(object):
@@ -163,6 +163,9 @@ class PostgresqlCluster(BaseCluster):
 
         Master: Starts postgres normally
         Slave: Writes a recovery.conf file and starts postgres as a read slave
+
+        The prepare_[master|slave] functions will put the instance in a state whereby
+        '/etc/init.d/postgresql start' can be executed.
     """
     def start_process(self):
         """ Starts postgresql using the init.d scripts.
@@ -176,18 +179,36 @@ class PostgresqlCluster(BaseCluster):
         """ Using the template specified in settings, create a recovery.conf file in the
             postgres config dir.
         """
-        template = open(self.settings['recovery_template'], 'r').read()
-        output = open(self.settings.RECOVERY_FILENAME, 'w')
-        output.write(template % self.metadata)
+        data = dict(self.metadata.items() + self.settings.items())
+        data.update(
+            {'master_cname': self.master_cname}
+        )
+        template_file = open(self.settings['recovery_template'], 'r')
+        template = template_file.read()
+        template_file.close()
+        output = open(self.settings['recovery_filename'], 'w')
+        output.write(template % data)
         output.close()
-            
 
+    def configure_cron_backup(self):
+        """ Creates a cronjob to perform backups via snaptastic.
+
+            Default behaviour is to take backups at 08:00 each day.
+        """
+        cron = CronTab('postgres')
+        backup_job = cron.new(command='/usr/bin/echo testingcron',
+            comment='Created by ec2_cluster')
+        backup_job.hour.every(8)
+        cron.write()
+            
     def prepare_master(self):
         """ Init postgres as a master.
         """
-        return True
+        self.configure_cron_backup()
 
     def prepare_slave(self):
         """ Init postgres as a read-slave by writing a recovery.conf file.
         """
         self.write_recovery_conf()
+
+
