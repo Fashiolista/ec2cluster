@@ -1,5 +1,5 @@
 import json
-import boto
+from boto.utils import get_instance_userdata, get_instance_metadata
 import dns
 import os
 import subprocess
@@ -13,8 +13,8 @@ MASTER_CNAME = 'master.%(cluster)s.example.com'
 
 class EC2Mixin(object):
     def get_metadata(self):
-        data = json.loads(boto.utils.get_instance_userdata())
-        data.update(boto.utils.get_instance_metadata())
+        data = json.loads(get_instance_userdata())
+        data.update(get_instance_metadata())
         return data
 
     def acquire_master_cname(self, force=False):
@@ -162,7 +162,7 @@ PG_USER = 'postgres'
 PG_TIMEOUT = 20 # Time to wait when attempting to connect to postgres
 
 
-class PostgresqlCluster(BaseCluster):
+class PostgresqlCluster(EC2Mixin, BaseCluster):
     """ PostgreSQL cluster.
 
         Master: Starts postgres normally
@@ -215,7 +215,7 @@ class PostgresqlCluster(BaseCluster):
         """
         self.write_recovery_conf()
 
-    def get_conn(self, host=None, dbname=None, user=None):
+    def _get_conn(self, host=None, dbname=None, user=None):
         """ Returns a connection to postgresql server.
         """
         conn_str = ''
@@ -239,7 +239,7 @@ class PostgresqlCluster(BaseCluster):
             This is a safety check to avoid promoting a slave when we already have a
             master in the cluster.
         """
-        conn = self.get_conn(host=self.master_cname)
+        conn = self._get_conn(host=self.master_cname)
         cur = conn.cursor()
         cur.execute('SELECT pg_is_in_recovery()')
         res = cur.fetchone()
@@ -260,7 +260,7 @@ class PostgresqlCluster(BaseCluster):
         """ Returns true if there is a postgresql server running on localhost, and
             the server is in recovery mode (i.e. it is a read slave).
         """
-        conn = self.get_conn()
+        conn = self._get_conn()
         cur = conn.cursor()
         cur.execute('SELECT pg_is_in_recovery()')
         res = cur.fetchone()

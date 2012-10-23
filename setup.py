@@ -30,7 +30,7 @@ setup(
     classifiers=CLASSIFIERS,
     entry_points={
         'console_scripts': [
-            'ec2_cluster = ec2_cluster.main:main'
+            'ec2_cluster = ec2_cluster.cli:main'
         ]
     },
 )

@@ -23,6 +23,11 @@ Create a configuration file::
     INIT_MASTER_SCRIPT = '/path/to/some_script.py'
     INIT_SLAVE_SCRIPT = '/path/to/another_script.py'
 
+Run ec2cluster, specifying the path to the config file::
+    
+    ec2_cluster init # initialise the cluster service
+    ec2_cluster promote # promote a slave to the master role
+
 
 PostgreSQL cluster:
 -------------------
