@@ -4,8 +4,8 @@ import dns
 import os
 import subprocess
 import psycopg2
+import logging
 from crontab import CronTab
-
 
 # TODO move to settings
 MASTER_CNAME = 'master.%(cluster)s.example.com'
@@ -33,7 +33,9 @@ class EC2Mixin(object):
 
 class VagrantMixin(object):
     def get_metadata(self):
-        return os.environ
+        data = os.environ
+        data['cluster'] = 'vagranttest'
+        return data
 
 def get_cluster_class(infrastructureClass, serviceClass):
     clusterClass = type('className', (serviceClass, infrastructureClass), {})
@@ -51,6 +53,9 @@ class BaseCluster(object):
         raise NotImplementedError
 
     def __init__(self, settings=None):
+        self.logger = logging.getLogger('%s.%s' % (__name__, self.__class__.__name__))
+        self.logger.warning('test')
+
         self.settings = settings
         self.metadata = self.get_metadata()
         self.master_cname = self.get_master_cname()
@@ -70,7 +75,8 @@ class BaseCluster(object):
             # Call the function for this role, as declared in get_roles().
             self.roles[self.role]()
         else:
-            raise Exception('Unrecognised role: %s' % self.role)
+            logger.critical('Unknown role: %s' % self.role)
+            raise exceptions.UnknownRole()
         self.start_process()
         # Poll the process until it either starts successfully, or fails. This will result
         # in a call to process_started or process_failed.
@@ -162,7 +168,8 @@ PG_USER = 'postgres'
 PG_TIMEOUT = 20 # Time to wait when attempting to connect to postgres
 
 
-class PostgresqlCluster(EC2Mixin, BaseCluster):
+#class PostgresqlCluster(EC2Mixin, BaseCluster):
+class PostgresqlCluster(VagrantMixin, BaseCluster):
     """ PostgreSQL cluster.
 
         Master: Starts postgres normally
