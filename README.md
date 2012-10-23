@@ -4,6 +4,7 @@ This package makes it easier to deploy clustered applications such as PostgreSQL
     
     * Deciding which role the instance should assume
     * Creating and updating DNS records
+    * Preparing the instance for its role (e.g. writing a recovery.conf file for postgres)
 
 Basic Usage:
     
@@ -21,7 +22,6 @@ Create a configuration file::
     SLAVE_CNAME = 'slave.%(cluster)s.example.com'
     INIT_MASTER_SCRIPT = '/path/to/some_script.py'
     INIT_SLAVE_SCRIPT = '/path/to/another_script.py'
-
 
 
 PostgreSQL cluster:

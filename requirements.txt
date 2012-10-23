@@ -3,3 +3,4 @@ unittest2
 boto
 dnspython
 python-crontab
+psycopg2

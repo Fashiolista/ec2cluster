@@ -3,6 +3,7 @@ import boto
 import dns
 import os
 import subprocess
+import psycopg2
 from crontab import CronTab
 
 
@@ -153,9 +154,12 @@ class ScriptCluster(BaseCluster):
 
 
 # TODO move to settings
-POSTGRESQL_DIR = '/var/lib/postgresql/9.1/main'
-RECOVERY_FILENAME = '%s/recovery.conf' % POSTGRESQL_DIR
+PG_DIR = '/var/lib/postgresql/9.1/main'
+RECOVERY_FILENAME = '%s/recovery.conf' % PG_DIR
 RECOVERY_TEMPLATE = '/tmp/recovery.conf'
+PG_CTL = '/usr/lib/postgresql/9.1/bin/pg_ctl'
+PG_USER = 'postgres'
+PG_TIMEOUT = 20 # Time to wait when attempting to connect to postgres
 
 
 class PostgresqlCluster(BaseCluster):
@@ -200,7 +204,7 @@ class PostgresqlCluster(BaseCluster):
             comment='Created by ec2_cluster')
         backup_job.hour.every(8)
         cron.write()
-            
+
     def prepare_master(self):
         """ Init postgres as a master.
         """
@@ -210,5 +214,86 @@ class PostgresqlCluster(BaseCluster):
         """ Init postgres as a read-slave by writing a recovery.conf file.
         """
         self.write_recovery_conf()
+
+    def get_conn(self, host=None, dbname=None, user=None):
+        """ Returns a connection to postgresql server.
+        """
+        conn_str = ''
+        if host:
+            conn_str += 'host="%s" ' % host
+        if dbname:
+            conn_str += 'dbname=%s ' % dbname
+        if user:
+            conn_str += 'user=%s ' % user
+
+        # TODO verify this works as expected - should make it quicker to detect a failed
+        # master, as we don't have to wait the full 60 seconds.
+        conn_str += 'timeout=%s' % PG_TIMEOUT
+
+        return psycopg2.connect(conn_str)
+
+    def check_master(self):
+        """ Returns true if there is a postgresql server running on the master CNAME
+            for this cluster, and this instance believes it is the master.
+            
+            This is a safety check to avoid promoting a slave when we already have a
+            master in the cluster.
+        """
+        conn = self.get_conn(host=self.master_cname)
+        cur = conn.cursor()
+        cur.execute('SELECT pg_is_in_recovery()')
+        res = cur.fetchone()
+        if res == 't':
+            # We server we connected to thinks it is a slave
+            return False
+
+        # Perform a basic query to make sure postgresql is operational
+        cur.execute('SELECT 1')
+        res = cur.fetchone()
+        if res == '1':
+            return True
+
+        # If we get here, something went wrong
+        return False
+
+    def check_slave(self):
+        """ Returns true if there is a postgresql server running on localhost, and
+            the server is in recovery mode (i.e. it is a read slave).
+        """
+        conn = self.get_conn()
+        cur = conn.cursor()
+        cur.execute('SELECT pg_is_in_recovery()')
+        res = cur.fetchone()
+        # TODO result won't be a plain string
+        return (res == 't')
+
+    def promote(self, force=False):
+        """ Promote a read-slave to the master role.
+
+            If force is True, safety checks are ignored and the promotion is forced.
+        """
+        active_master = self.check_master()
+        if active_master == True:
+            print 'There is an active server at %s' % self.master_cname
+            if force == False:
+                print 'Refusing to promote slave without "force", exiting.'
+                return
+        promote_cmd = 'sudo -u %(user)s %(pg_ctl)s -D %(dir)s promote' % {
+            'user': PG_USER,
+            'pg_ctl': PG_CTL,
+            'dir': PG_DIR}
+        print 'Running promote command: %s' % promote_cmd
+        # TODO error checking, log output
+        subprocess.check_call(promote_cmd.split())
+
+
+
+
+
+
+
+
+
+
 
 
