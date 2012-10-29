@@ -6,8 +6,8 @@ import os
 
 from mock import patch
 
-path = os.path.abspath(__file__)
-parent = os.path.join(path, '../', '../')
+path = os.path.dirname(__file__)
+parent = os.path.join(path, '../')
 sys.path.append(parent)
 
 from ec2_cluster.base import BaseCluster, PostgresqlCluster, ScriptCluster

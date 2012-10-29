@@ -1,14 +1,16 @@
 import json
+import boto
 from boto.utils import get_instance_userdata, get_instance_metadata
+from boto.route53.record import ResourceRecordSets
 import dns
+import dns.resolver
 import os
 import subprocess
 import psycopg2
 import logging
 from crontab import CronTab
 
-# TODO move to settings
-MASTER_CNAME = 'master.%(cluster)s.example.com'
+from ec2_cluster import default_settings as settings
 
 
 class EC2Mixin(object):
@@ -35,7 +37,81 @@ class VagrantMixin(object):
     def get_metadata(self):
         data = os.environ
         data['cluster'] = 'vagranttest'
+        data['public_hostname'] = 'instance12346.vagranttest.example.com'
+        data['instance_id'] = 'i-12346'
         return data
+
+    def _get_route53_conn(self):
+        return boto.connect_route53(aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
+        
+
+    def acquire_master_cname(self, force=False):
+        # TODO move this to EC2Mixin after initial testing
+        """ Use Route53 to update the master_cname record to point to this instance.
+
+            If the CNAME already exists and force is False, an exception will be raised.
+            Setting force to True will cause this function to 'take' the DNS record.
+        """
+        try:
+            answers = dns.resolver.query(self.master_cname, 'CNAME')
+        except dns.resolver.NXDOMAIN:
+            master_cname_exists = False
+            self.logger.info('%s does not exist, so creating it' % self.master_cname)
+        else:
+            master_cname_exists = True
+            old_cname_value = res.rrset.items[0].to_text()
+            self.logger.info('%s already exists, so updating it' % self.master_cname)
+
+        if master_cname_exists == True and force == False:
+            self.logger.critical('CNAME %s exists and force is false - exiting' % self.master_cname)
+            raise Exception('CNAME %s exists and force is False - not taking the CNAME' % self.master_cname)
+
+        # if we get here, either the CNAME does not exist or Force is true, so we should take the CNAME
+        route53_conn = self._get_route53_conn()
+        
+        changes = ResourceRecordSets(route53_conn, settings.ROUTE53_ZONE_ID)
+        if master_cname_exists:
+            self.logger.info('Deleting existing record for %s' % self.master_cname)
+            del_record = changes.add_change('DELETE', self.master_cname, 'CNAME', ttl=settings.MASTER_CNAME_TTL)
+            del_record.add_value(old_cname_value)
+
+        self.logger.info('Creating record for %s' % self.master_cname)
+        add_record = changes.add_change('CREATE', self.master_cname, 'CNAME', ttl=settings.MASTER_CNAME_TTL)
+        add_record.add_value(self.metadata['public_hostname'])
+        changes.commit()
+        self.logger.info('Finished updating DNS records')
+
+    def add_to_slave_cname_pool(self):
+        """ Add this instance to the pool of hostnames for slave.<cluster name>.goteam.be.
+
+            This is a pool of 'weighted resource recordsets', which allows traffic to be distributed to
+            multiple read-slaves.
+        """
+        route53_conn = self._get_route53_conn()
+
+        changes = ResourceRecordSets(route53_conn, settings.ROUTE53_ZONE_ID)
+
+        self.logger.info('Adding %s to CNAME pool for %s' % (self.metadata['instance_id'], self.slave_cname))
+        add_record = changes.add_change('CREATE',
+            self.slave_cname,
+            'CNAME',
+            ttl=settings.SLAVE_CNAME_TTL,
+            weight='10',
+            identifier=self.metadata['instance_id'])
+        add_record.add_value(self.metadata['public_hostname'])
+        try:
+            changes.commit()
+        except boto.route53.exception.DNSServerError, e:
+            if e.error_message.endswith('it already exists'):
+                # This instance is already in the pool - carry on as normal.
+                self.logger.warning('Attempted to create a CNAME, but one already exists for this instance')
+            else:
+                raise
+        self.logger.info('Finished updating DNS records')
+
+
+            
 
 def get_cluster_class(infrastructureClass, serviceClass):
     clusterClass = type('className', (serviceClass, infrastructureClass), {})
@@ -56,9 +132,12 @@ class BaseCluster(object):
         self.logger = logging.getLogger('%s.%s' % (__name__, self.__class__.__name__))
         self.logger.warning('test')
 
+        if settings is None:
+            settings = {}
         self.settings = settings
         self.metadata = self.get_metadata()
         self.master_cname = self.get_master_cname()
+        self.slave_cname = self.get_slave_cname()
         self.roles = self.get_roles()
 
     def get_roles(self):
@@ -85,18 +164,26 @@ class BaseCluster(object):
     def get_master_cname(self):
         """ Returns the CNAME of the master server for this cluster.
         """
-        return MASTER_CNAME % self.metadata
+        return settings.MASTER_CNAME % self.metadata
 
-    def determine_role():
+    def get_slave_cname(self):
+        """ Returns the CNAME of the slave servers for this cluster.
+        """
+        return settings.SLAVE_CNAME % self.metadata
+
+    def determine_role(self):
         """ Should we be a master or a slave?
 
             If the self.master_cname DNS record exists, we should be a slave.
         """
+        self.logger.info('Attempting to determine role')
         try:
             answers = dns.resolver.query(self.master_cname, 'CNAME')
-        except dns.exceptions.NXDOMAIN:
+        except dns.resolver.NXDOMAIN:
+            self.logger.info('Master CNAME does not exist, assuming master role')
             return self.MASTER
         else:
+            self.logger.info('Master CNAME already exists, assuming slave role')
             return self.SLAVE
 
     def prepare_master(self):
@@ -131,6 +218,8 @@ class BaseCluster(object):
     def process_started(self):
         if self.role == self.MASTER:
             self.acquire_master_cname()
+        elif self.role == self.SLAVE:
+            self.add_to_slave_cname_pool()
 
     def process_failed(self):
         print 'oh shit something broke'
@@ -159,14 +248,6 @@ class ScriptCluster(BaseCluster):
 
 
 
-# TODO move to settings
-PG_DIR = '/var/lib/postgresql/9.1/main'
-RECOVERY_FILENAME = '%s/recovery.conf' % PG_DIR
-RECOVERY_TEMPLATE = '/tmp/recovery.conf'
-PG_CTL = '/usr/lib/postgresql/9.1/bin/pg_ctl'
-PG_USER = 'postgres'
-PG_TIMEOUT = 20 # Time to wait when attempting to connect to postgres
-
 
 #class PostgresqlCluster(EC2Mixin, BaseCluster):
 class PostgresqlCluster(VagrantMixin, BaseCluster):
@@ -190,14 +271,15 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
         """ Using the template specified in settings, create a recovery.conf file in the
             postgres config dir.
         """
+        self.logger.info('Writing recovery file using template %s' % settings.RECOVERY_TEMPLATE)
         data = dict(self.metadata.items() + self.settings.items())
         data.update(
             {'master_cname': self.master_cname}
         )
-        template_file = open(self.settings['recovery_template'], 'r')
+        template_file = open(settings.RECOVERY_TEMPLATE, 'r')
         template = template_file.read()
         template_file.close()
-        output = open(self.settings['recovery_filename'], 'w')
+        output = open(settings.RECOVERY_FILENAME, 'w')
         output.write(template % data)
         output.close()
 
@@ -206,36 +288,47 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
 
             Default behaviour is to take backups at 08:00 each day.
         """
+        backup_cmd = 'PATH=/usr/local/bin:/usr/sbin snaptastic make-snapshots postgres'
+
         cron = CronTab('postgres')
-        backup_job = cron.new(command='/usr/bin/echo testingcron',
-            comment='Created by ec2_cluster')
+
+        # check if this job already exists - this is not perfect, but should stop us from running
+        # the exact same multiple times simultaneously
+        for job in cron:
+            if job.command.command() == backup_cmd:
+                self.logger.warning('The backup cron job already exists - skipping')
+                return
+
+        backup_job = cron.new(command=backup_cmd, comment='Created by ec2_cluster')
         backup_job.hour.every(8)
+        self.logger.info('Adding entry to postgres users crontab - %s' % backup_cmd)
         cron.write()
 
     def prepare_master(self):
         """ Init postgres as a master.
         """
+        # TODO remove acquire call, this happens after proc is started
+        self.acquire_master_cname()
         self.configure_cron_backup()
 
     def prepare_slave(self):
         """ Init postgres as a read-slave by writing a recovery.conf file.
         """
         self.write_recovery_conf()
+        self.logger.info('Instance configured as a slave')
+        # TODO remove cname call, this happens after proc is started
+        self.add_to_slave_cname_pool()
 
     def _get_conn(self, host=None, dbname=None, user=None):
         """ Returns a connection to postgresql server.
         """
         conn_str = ''
         if host:
-            conn_str += 'host="%s" ' % host
+            conn_str += 'host=%s ' % host
         if dbname:
             conn_str += 'dbname=%s ' % dbname
         if user:
             conn_str += 'user=%s ' % user
-
-        # TODO verify this works as expected - should make it quicker to detect a failed
-        # master, as we don't have to wait the full 60 seconds.
-        conn_str += 'timeout=%s' % PG_TIMEOUT
 
         return psycopg2.connect(conn_str)
 
@@ -246,6 +339,7 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
             This is a safety check to avoid promoting a slave when we already have a
             master in the cluster.
         """
+        # TODO untested
         conn = self._get_conn(host=self.master_cname)
         cur = conn.cursor()
         cur.execute('SELECT pg_is_in_recovery()')
@@ -267,6 +361,7 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
         """ Returns true if there is a postgresql server running on localhost, and
             the server is in recovery mode (i.e. it is a read slave).
         """
+        # TODO untested
         conn = self._get_conn()
         cur = conn.cursor()
         cur.execute('SELECT pg_is_in_recovery()')
@@ -285,13 +380,31 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
             if force == False:
                 print 'Refusing to promote slave without "force", exiting.'
                 return
-        promote_cmd = 'sudo -u %(user)s %(pg_ctl)s -D %(dir)s promote' % {
-            'user': PG_USER,
-            'pg_ctl': PG_CTL,
-            'dir': PG_DIR}
+        promote_cmd = '%(pg_ctl)s -D %(dir)s promote' % {
+            'user': settings.PG_USER,
+            'pg_ctl': settings.PG_CTL,
+            'dir': settings.PG_DIR}
         print 'Running promote command: %s' % promote_cmd
         # TODO error checking, log output
-        subprocess.check_call(promote_cmd.split())
+        try:
+            subprocess.check_output(promote_cmd.split(),
+                stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError, e:
+            if e.output.endswith('server is not in standby mode\n'):
+                self.logger.critical('This server is not in standby mode, so can not be promoted')
+                # TODO custom exception?
+                raise Exception(e.output)
+            else:
+                raise e
+
+        # If we get here, then postgresql should have been successfully promoted.
+
+        # Let's start doing backups
+        # TODO do we need to clean the backup here? new basebackup or something?
+        self.configure_cron_backup()
+
+
+
 
 
 
