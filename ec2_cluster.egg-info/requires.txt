@@ -1,0 +1,7 @@
+mock
+unittest2
+boto
+dnspython
+python-crontab
+psycopg2
+argh
