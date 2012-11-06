@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 from setuptools import setup, find_packages
+from ec2cluster import __version__
 
 install_requires = open('requirements.txt').readlines()
 license_text = open('LICENSE.txt').read()
@@ -16,7 +17,7 @@ CLASSIFIERS = [
 
 setup(
     name='ec2cluster',
-    version='0.1',
+    version=__version__,
     author='Mike Ryan',
     author_email='mike@fadedink.co.uk',
     license=license_text,
