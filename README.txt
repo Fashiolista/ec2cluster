@@ -8,13 +8,13 @@ This package makes it easier to deploy clustered applications such as PostgreSQL
 
 Basic Usage:
     
-The default ec2-cluster classes assume your EC2 instances have JSON-encoded user data containing some specific attributes. The following attributes are required::
+The default ec2cluster classes assume your EC2 instances have JSON-encoded user data containing some specific attributes. The following attributes are required::
     
     * cluster - the name of the cluster, e.g. maindb
 
-Install ec2-clusters with pip::
+Install ec2cluster with pip::
     
-    pip install ec2-clusters
+    pip install ec2cluster
 
 Create a configuration file::
     
