@@ -20,4 +20,4 @@ RECOVERY_FILENAME = '%s/recovery.conf' % PG_DIR
 RECOVERY_TEMPLATE = '/etc/postgresql/9.1/main/recovery_template.conf'
 PG_CTL = '/usr/lib/postgresql/9.1/bin/pg_ctl'
 PG_USER = 'postgres'
-PG_TIMEOUT = 20 # Time to wait when attempting to connect to postgres
+PG_TIMEOUT = 20  # Time to wait when attempting to connect to postgres

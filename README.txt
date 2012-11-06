@@ -25,8 +25,8 @@ Create a configuration file::
 
 Run ec2cluster, specifying the path to the config file::
     
-    ec2_cluster init # initialise the cluster service
-    ec2_cluster promote # promote a slave to the master role
+    ec2cluster init # initialise the cluster service
+    ec2cluster promote # promote a slave to the master role
 
 
 PostgreSQL cluster:

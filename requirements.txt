@@ -5,3 +5,5 @@ dnspython
 python-crontab
 psycopg2
 argh
+fabric
+pyflakes

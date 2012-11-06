@@ -1,16 +1,15 @@
 import sys
 import unittest2
 import mock
-import contextlib
 import os
-
 from mock import patch
+from ec2cluster.base import BaseCluster, PostgresqlCluster, ScriptCluster
+
 
 path = os.path.dirname(__file__)
 parent = os.path.join(path, '../')
 sys.path.append(parent)
 
-from ec2_cluster.base import BaseCluster, PostgresqlCluster, ScriptCluster
 
 class BaseTest(unittest2.TestCase):
 
@@ -20,6 +19,7 @@ class BaseTest(unittest2.TestCase):
         return {
             'cluster': 'test-cluster'
         }
+
 
 @patch.multiple(ScriptCluster,
     determine_role=mock.DEFAULT,
@@ -48,7 +48,7 @@ class ScriptClusterTest(BaseTest):
         self.cluster.initialise()
         kwargs['prepare_slave'].assert_called_with()
         kwargs['check_call'].assert_called_with(['/etc/init.d/testservice', 'start'])
-        
+
 
 @patch.multiple(PostgresqlCluster,
     determine_role=mock.DEFAULT,
@@ -76,7 +76,7 @@ class PostgresqlClusterTest(BaseTest):
             'recovery_template': '/tmp/recovery.tmp',
             'recovery_filename': '/tmp/recovery.conf'
         }
-    
+
     def test_init_master(self, *args, **kwargs):
         kwargs['determine_role'].return_value = BaseCluster.MASTER
         kwargs['get_metadata'].return_value = self.get_metadata()
@@ -90,4 +90,3 @@ class PostgresqlClusterTest(BaseTest):
         self.cluster = PostgresqlCluster(self.settings)
         self.cluster.initialise()
         kwargs['write_recovery_conf'].assert_called_with()
-

@@ -1,13 +1,13 @@
 from fabric.api import local, cd
-import os
+import os, sys
 PROJECT_ROOT = os.path.abspath(os.path.join(__file__, '../'))
+sys.path.insert(0, PROJECT_ROOT)
 
-
-def publish(test='yes'):
+def publish(run_tests=True):
     """ Update pip, create a git tag.
     """
-    #if test == 'yes':
-    #    validate()
+    if run_tests:
+        validate()
 
     local('git push')
 
@@ -22,7 +22,7 @@ def publish(test='yes'):
 def validate():
     with cd(PROJECT_ROOT):
         local('pep8 --exclude=migrations --ignore=E501,E225 ec2cluster')
-        local('pyflakes.py -x W ec2cluster')
+        local('pyflakes ec2cluster')
         local('python -m unittest ec2cluster.tests')
 
 
