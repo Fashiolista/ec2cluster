@@ -1,18 +1,11 @@
 import logging
 import utils
 import argparse
-from ec2_cluster.base import PostgresqlCluster
-
-""" TODO
-
-    add postgresql-server-dev-X.Y to requirements
+from ec2cluster.base import PostgresqlCluster
 
 
+logger = logging.getLogger('ec2cluster')
 
-"""
-
-
-logger = logging.getLogger('ec2_cluster')
 
 def promote(args):
     """ Promote a PostgreSQL read-slave to the master role.
@@ -48,7 +41,6 @@ def _add_default_args(parsers, args):
 
 
 def main():
-    
     utils.configure_logging()
     parser = argparse.ArgumentParser()
 

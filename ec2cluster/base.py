@@ -10,7 +10,7 @@ import psycopg2
 import logging
 from crontab import CronTab
 
-from ec2_cluster import default_settings as settings
+from ec2cluster import default_settings as settings
 
 
 class EC2Mixin(object):
@@ -44,7 +44,6 @@ class VagrantMixin(object):
     def _get_route53_conn(self):
         return boto.connect_route53(aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
-        
 
     def acquire_master_cname(self, force=False):
         # TODO move this to EC2Mixin after initial testing
@@ -60,7 +59,7 @@ class VagrantMixin(object):
             self.logger.info('%s does not exist, so creating it' % self.master_cname)
         else:
             master_cname_exists = True
-            old_cname_value = res.rrset.items[0].to_text()
+            old_cname_value = answers.rrset.items[0].to_text()
             self.logger.info('%s already exists, so updating it' % self.master_cname)
 
         if master_cname_exists == True and force == False:
@@ -69,7 +68,7 @@ class VagrantMixin(object):
 
         # if we get here, either the CNAME does not exist or Force is true, so we should take the CNAME
         route53_conn = self._get_route53_conn()
-        
+
         changes = ResourceRecordSets(route53_conn, settings.ROUTE53_ZONE_ID)
         if master_cname_exists:
             self.logger.info('Deleting existing record for %s' % self.master_cname)
@@ -111,10 +110,9 @@ class VagrantMixin(object):
         self.logger.info('Finished updating DNS records')
 
 
-            
-
 def get_cluster_class(infrastructureClass, serviceClass):
     clusterClass = type('className', (serviceClass, infrastructureClass), {})
+    return clusterClass
 
 
 class BaseCluster(object):
@@ -154,8 +152,8 @@ class BaseCluster(object):
             # Call the function for this role, as declared in get_roles().
             self.roles[self.role]()
         else:
-            logger.critical('Unknown role: %s' % self.role)
-            raise exceptions.UnknownRole()
+            self.logger.critical('Unknown role: %s' % self.role)
+            raise Exception('Unrecognised role: %s' % self.role)
         self.start_process()
         # Poll the process until it either starts successfully, or fails. This will result
         # in a call to process_started or process_failed.
@@ -178,7 +176,7 @@ class BaseCluster(object):
         """
         self.logger.info('Attempting to determine role')
         try:
-            answers = dns.resolver.query(self.master_cname, 'CNAME')
+            dns.resolver.query(self.master_cname, 'CNAME')
         except dns.resolver.NXDOMAIN:
             self.logger.info('Master CNAME does not exist, assuming master role')
             return self.MASTER
@@ -230,6 +228,7 @@ SERVICE_NAME = 'testservice'
 MASTER_SCRIPT = '/tmp/master.py'
 SLAVE_SCRIPT = '/tmp/slave.py'
 
+
 class ScriptCluster(BaseCluster):
     """ Basic cluster - simply runs scripts when preparing a master/slave, and
         starts a service via init.d scripts.
@@ -245,8 +244,6 @@ class ScriptCluster(BaseCluster):
 
     def poll_process(self):
         self.process_started()
-
-
 
 
 #class PostgresqlCluster(EC2Mixin, BaseCluster):
@@ -299,7 +296,7 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
                 self.logger.warning('The backup cron job already exists - skipping')
                 return
 
-        backup_job = cron.new(command=backup_cmd, comment='Created by ec2_cluster')
+        backup_job = cron.new(command=backup_cmd, comment='Created by ec2cluster')
         backup_job.hour.every(8)
         self.logger.info('Adding entry to postgres users crontab - %s' % backup_cmd)
         cron.write()
@@ -335,7 +332,6 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
     def check_master(self):
         """ Returns true if there is a postgresql server running on the master CNAME
             for this cluster, and this instance believes it is the master.
-            
             This is a safety check to avoid promoting a slave when we already have a
             master in the cluster.
         """
@@ -402,18 +398,3 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
         # Let's start doing backups
         # TODO do we need to clean the backup here? new basebackup or something?
         self.configure_cron_backup()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

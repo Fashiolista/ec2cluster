@@ -6,7 +6,7 @@ lib/*
 include/*
 build/*
 dist/*
-ec2_cluster.egg-info/*
+ec2cluster.egg-info/*
 
 .Python
 

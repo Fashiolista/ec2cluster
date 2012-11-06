@@ -26,13 +26,14 @@ BASE_LOGGING_CONFIG = {
         },
     },
     'loggers': {
-        'ec2_cluster': {
+        'ec2cluster': {
             'handlers': ['default', 'error'],
             'level': 'DEBUG',
             'propagate': True
         },
     }
 }
+
 
 def configure_logging():
     logging.config.dictConfig(BASE_LOGGING_CONFIG)
