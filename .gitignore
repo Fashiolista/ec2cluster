@@ -13,3 +13,4 @@ ec2cluster.egg-info/*
 .vagrant
 
 Vagrantfile
+ec2_cluster.egg-info
