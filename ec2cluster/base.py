@@ -15,8 +15,8 @@ from ec2cluster import default_settings as settings
 
 class EC2Mixin(object):
     def get_metadata(self):
-        data = json.loads(get_instance_userdata())
-        data.update(get_instance_metadata())
+        data = get_instance_metadata()
+        data.update(json.loads(get_instance_userdata()))
         return data
 
     def _get_route53_conn(self):
@@ -69,13 +69,13 @@ class EC2Mixin(object):
 
         changes = ResourceRecordSets(route53_conn, settings.ROUTE53_ZONE_ID)
 
-        self.logger.info('Adding %s to CNAME pool for %s' % (self.metadata['instance_id'], self.slave_cname))
+        self.logger.info('Adding %s to CNAME pool for %s' % (self.metadata['instance-id'], self.slave_cname))
         add_record = changes.add_change('CREATE',
             self.slave_cname,
             'CNAME',
             ttl=settings.SLAVE_CNAME_TTL,
             weight='10',
-            identifier=self.metadata['instance_id'])
+            identifier=self.metadata['instance-id'])
         add_record.add_value(self.metadata['public-hostname'])
         try:
             changes.commit()
@@ -93,7 +93,7 @@ class VagrantMixin(object):
         data = os.environ
         data['cluster'] = 'vagranttest'
         data['public-hostname'] = 'instance12346.vagranttest.example.com'
-        data['instance_id'] = 'i-12346'
+        data['instance-id'] = 'i-12346'
         return data
 
 
