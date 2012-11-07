@@ -19,6 +19,10 @@ class EC2Mixin(object):
         data.update(get_instance_metadata())
         return data
 
+    def _get_route53_conn(self):
+        return boto.connect_route53(aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
+
     def acquire_master_cname(self, force=False):
         # TODO move this to EC2Mixin after initial testing
         """ Use Route53 to update the master_cname record to point to this instance.
@@ -91,11 +95,6 @@ class VagrantMixin(object):
         data['public_hostname'] = 'instance12346.vagranttest.example.com'
         data['instance_id'] = 'i-12346'
         return data
-
-    def _get_route53_conn(self):
-        return boto.connect_route53(aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
-
 
 
 def get_cluster_class(infrastructureClass, serviceClass):
