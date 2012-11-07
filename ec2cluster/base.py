@@ -55,7 +55,7 @@ class EC2Mixin(object):
 
         self.logger.info('Creating record for %s' % self.master_cname)
         add_record = changes.add_change('CREATE', self.master_cname, 'CNAME', ttl=settings.MASTER_CNAME_TTL)
-        add_record.add_value(self.metadata['public_hostname'])
+        add_record.add_value(self.metadata['public-hostname'])
         changes.commit()
         self.logger.info('Finished updating DNS records')
 
@@ -76,7 +76,7 @@ class EC2Mixin(object):
             ttl=settings.SLAVE_CNAME_TTL,
             weight='10',
             identifier=self.metadata['instance_id'])
-        add_record.add_value(self.metadata['public_hostname'])
+        add_record.add_value(self.metadata['public-hostname'])
         try:
             changes.commit()
         except boto.route53.exception.DNSServerError, e:
@@ -92,7 +92,7 @@ class VagrantMixin(object):
     def get_metadata(self):
         data = os.environ
         data['cluster'] = 'vagranttest'
-        data['public_hostname'] = 'instance12346.vagranttest.example.com'
+        data['public-hostname'] = 'instance12346.vagranttest.example.com'
         data['instance_id'] = 'i-12346'
         return data
 
