@@ -263,16 +263,16 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
     def poll_process(self):
         pass
 
-    def write_recovery_conf(self):
+    def write_recovery_conf(self, template_path):
         """ Using the template specified in settings, create a recovery.conf file in the
             postgres config dir.
         """
-        self.logger.info('Writing recovery file using template %s' % settings.RECOVERY_TEMPLATE)
+        self.logger.info('Writing recovery file using template %s' % template_path)
         data = dict(self.metadata.items() + self.settings.items())
         data.update(
             {'master_cname': self.master_cname}
         )
-        template_file = open(settings.RECOVERY_TEMPLATE, 'r')
+        template_file = open(template_path, 'r')
         template = template_file.read()
         template_file.close()
         output = open(settings.RECOVERY_FILENAME, 'w')
@@ -305,13 +305,14 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         """
         # TODO remove acquire call, this happens after proc is started
         self.acquire_master_cname()
+        self.write_recovery_conf(settings.RECOVERY_TEMPLATE_MASTER)
         self.configure_cron_backup()
         # TODO apply some tags here to show the role of the instance
 
     def prepare_slave(self):
         """ Init postgres as a read-slave by writing a recovery.conf file.
         """
-        self.write_recovery_conf()
+        self.write_recovery_conf(settings.RECOVERY_TEMPLATE_SLAVE)
         self.logger.info('Instance configured as a slave')
         # TODO remove cname call, this happens after proc is started
         self.add_to_slave_cname_pool()
