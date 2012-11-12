@@ -242,6 +242,19 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         The prepare_[master|slave] functions will put the instance in a state whereby
         '/etc/init.d/postgresql start' can be executed.
     """
+    def _get_conn(self, host=None, dbname=None, user=None):
+        """ Returns a connection to postgresql server.
+        """
+        conn_str = ''
+        if host:
+            conn_str += 'host=%s ' % host
+        if dbname:
+            conn_str += 'dbname=%s ' % dbname
+        if user:
+            conn_str += 'user=%s ' % user
+
+        return psycopg2.connect(conn_str)
+
     def start_process(self):
         """ Starts postgresql using the init.d scripts.
         """
@@ -304,18 +317,6 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         self.add_to_slave_cname_pool()
         # TODO apply some tags here to show the role of the instance
 
-    def _get_conn(self, host=None, dbname=None, user=None):
-        """ Returns a connection to postgresql server.
-        """
-        conn_str = ''
-        if host:
-            conn_str += 'host=%s ' % host
-        if dbname:
-            conn_str += 'dbname=%s ' % dbname
-        if user:
-            conn_str += 'user=%s ' % user
-
-        return psycopg2.connect(conn_str)
 
     def check_master(self):
         """ Returns true if there is a postgresql server running on the master CNAME
@@ -324,7 +325,13 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
             master in the cluster.
         """
         # TODO untested
-        conn = self._get_conn(host=self.master_cname)
+        self.logger.info('Checking master DB at %s' % self.master_cname)
+        try:
+            conn = self._get_conn(host=self.master_cname)
+        except psycopg2.OperationalError:
+            self.logger.info('Connecting to master failed')
+            return False
+
         cur = conn.cursor()
         cur.execute('SELECT pg_is_in_recovery()')
         res = cur.fetchone()
@@ -346,6 +353,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
             the server is in recovery mode (i.e. it is a read slave).
         """
         # TODO untested
+        self.logger.info('Checking slave DB on localhost')
         conn = self._get_conn()
         cur = conn.cursor()
         cur.execute('SELECT pg_is_in_recovery()')
@@ -358,7 +366,12 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
 
             If force is True, safety checks are ignored and the promotion is forced.
         """
-        active_master = self.check_master()
+        try:
+            active_master = self.check_master()
+        except psycopg2.OperationalError, e:
+            print 'Could not connect to master'
+            active_master = False
+
         if active_master == True:
             print 'There is an active server at %s' % self.master_cname
             if force == False:
@@ -379,6 +392,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
                 # TODO custom exception?
                 raise Exception(e.output)
             else:
+                print e.output
                 raise e
 
         # If we get here, then postgresql should have been successfully promoted.
