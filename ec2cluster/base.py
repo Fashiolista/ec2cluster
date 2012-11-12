@@ -285,7 +285,7 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
 
             Default behaviour is to take backups at 08:00 each day.
         """
-        backup_cmd = 'PATH=/usr/local/bin:/usr/sbin snaptastic make-snapshots postgres'
+        backup_cmd = 'PATH=/usr/local/bin:/usr/sbin snaptastic make-snapshots postgresql'
 
         cron = CronTab('postgres')
 
@@ -307,6 +307,7 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
         # TODO remove acquire call, this happens after proc is started
         self.acquire_master_cname()
         self.configure_cron_backup()
+        # TODO apply some tags here to show the role of the instance
 
     def prepare_slave(self):
         """ Init postgres as a read-slave by writing a recovery.conf file.
@@ -315,6 +316,7 @@ class PostgresqlCluster(VagrantMixin, BaseCluster):
         self.logger.info('Instance configured as a slave')
         # TODO remove cname call, this happens after proc is started
         self.add_to_slave_cname_pool()
+        # TODO apply some tags here to show the role of the instance
 
     def _get_conn(self, host=None, dbname=None, user=None):
         """ Returns a connection to postgresql server.
