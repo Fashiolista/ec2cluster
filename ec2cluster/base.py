@@ -15,30 +15,8 @@ from ec2cluster import default_settings as settings
 
 class EC2Mixin(object):
     def get_metadata(self):
-        data = json.loads(get_instance_userdata())
-        data.update(get_instance_metadata())
-        return data
-
-    def acquire_master_cname(self, force=False):
-        """ Use Route53 to update the master_cname record to point to this instance.
-
-            If the CNAME already exists and force is False, an exception will be raised.
-            Setting force to True will cause this function to 'take' the DNS record.
-        """
-        raise NotImplementedError
-
-    def add_to_slave_cname_pool(self):
-        """ Add this instance to the slave_cname weighted resource record DNS pool.
-        """
-        raise NotImplementedError
-
-
-class VagrantMixin(object):
-    def get_metadata(self):
-        data = os.environ
-        data['cluster'] = 'vagranttest'
-        data['public_hostname'] = 'instance12346.vagranttest.example.com'
-        data['instance_id'] = 'i-12346'
+        data = get_instance_metadata()
+        data.update(json.loads(get_instance_userdata()))
         return data
 
     def _get_route53_conn(self):
@@ -77,7 +55,7 @@ class VagrantMixin(object):
 
         self.logger.info('Creating record for %s' % self.master_cname)
         add_record = changes.add_change('CREATE', self.master_cname, 'CNAME', ttl=settings.MASTER_CNAME_TTL)
-        add_record.add_value(self.metadata['public_hostname'])
+        add_record.add_value(self.metadata['public-hostname'])
         changes.commit()
         self.logger.info('Finished updating DNS records')
 
@@ -91,14 +69,14 @@ class VagrantMixin(object):
 
         changes = ResourceRecordSets(route53_conn, settings.ROUTE53_ZONE_ID)
 
-        self.logger.info('Adding %s to CNAME pool for %s' % (self.metadata['instance_id'], self.slave_cname))
+        self.logger.info('Adding %s to CNAME pool for %s' % (self.metadata['instance-id'], self.slave_cname))
         add_record = changes.add_change('CREATE',
             self.slave_cname,
             'CNAME',
             ttl=settings.SLAVE_CNAME_TTL,
             weight='10',
-            identifier=self.metadata['instance_id'])
-        add_record.add_value(self.metadata['public_hostname'])
+            identifier=self.metadata['instance-id'])
+        add_record.add_value(self.metadata['public-hostname'])
         try:
             changes.commit()
         except boto.route53.exception.DNSServerError, e:
@@ -108,6 +86,15 @@ class VagrantMixin(object):
             else:
                 raise
         self.logger.info('Finished updating DNS records')
+
+
+class VagrantMixin(object):
+    def get_metadata(self):
+        data = os.environ
+        data['cluster'] = 'vagranttest'
+        data['public-hostname'] = 'instance12346.vagranttest.example.com'
+        data['instance-id'] = 'i-12346'
+        return data
 
 
 def get_cluster_class(infrastructureClass, serviceClass):
@@ -246,8 +233,7 @@ class ScriptCluster(BaseCluster):
         self.process_started()
 
 
-#class PostgresqlCluster(EC2Mixin, BaseCluster):
-class PostgresqlCluster(VagrantMixin, BaseCluster):
+class PostgresqlCluster(EC2Mixin, BaseCluster):
     """ PostgreSQL cluster.
 
         Master: Starts postgres normally
