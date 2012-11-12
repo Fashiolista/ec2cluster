@@ -24,7 +24,6 @@ class EC2Mixin(object):
             aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY)
 
     def acquire_master_cname(self, force=False):
-        # TODO move this to EC2Mixin after initial testing
         """ Use Route53 to update the master_cname record to point to this instance.
 
             If the CNAME already exists and force is False, an exception will be raised.
@@ -378,7 +377,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
             if force == False:
                 print 'Refusing to promote slave without "force", exiting.'
                 return
-        promote_cmd = '%(pg_ctl)s -D %(dir)s promote' % {
+        promote_cmd = 'sudo -u postgres %(pg_ctl)s -D %(dir)s promote' % {
             'user': settings.PG_USER,
             'pg_ctl': settings.PG_CTL,
             'dir': settings.PG_DIR}
@@ -397,7 +396,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
                 raise e
 
         # If we get here, then postgresql should have been successfully promoted.
+        self.acquire_master_cname(force=True)
 
         # Let's start doing backups
-        # TODO do we need to clean the backup here? new basebackup or something?
         self.configure_cron_backup()
