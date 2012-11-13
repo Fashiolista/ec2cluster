@@ -175,13 +175,19 @@ class BaseCluster(object):
         """
         self.logger.info('Attempting to determine role')
         try:
-            dns.resolver.query(self.master_cname, 'CNAME')
+            answers = dns.resolver.query(self.master_cname, 'CNAME')
         except dns.resolver.NXDOMAIN:
             self.logger.info('Master CNAME does not exist, assuming master role')
             return self.MASTER
-        else:
-            self.logger.info('Master CNAME already exists, assuming slave role')
-            return self.SLAVE
+
+        if answers.rrset.items[0].to_text() == self.metadata['public-hostname']:
+            # TODO this will cause acquire_master_cname to fail, as the CNAME already exists
+            self.logger.info('Master CNAME exists and is pointing to this host, assuming master role')
+            return self.MASTER
+
+        # Otherwise, we should be a slave
+        self.logger.info('Master CNAME already exists, assuming slave role')
+        return self.SLAVE
 
     def prepare_master(self):
         """ Initialise the master server.
