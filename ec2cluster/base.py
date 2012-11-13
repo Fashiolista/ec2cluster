@@ -86,6 +86,21 @@ class EC2Mixin(object):
                 raise
         self.logger.info('Finished updating DNS records')
 
+    def remove_from_slave_cname_pool(self):
+        """ Remove this instance from the pool of slave hostnames, usually after a promotion.
+        """
+        route53_conn = self._get_route53_conn()
+        changes = ResourceRecordSets(route53_conn, settings.ROUTE53_ZONE_ID)
+
+        self.logger.info('Adding %s to CNAME pool for %s' % (self.metadata['instance-id'], self.slave_cname))
+        del_record = changes.add_change('DELETE',
+            self.slave_cname,
+            'CNAME',
+            ttl=settings.SLAVE_CNAME_TTL,
+            weight='10',
+            identifier=self.metadata['instance-id'])
+        del_record.add_value(self.metadata['public-hostname'])
+        changes.commit()
 
 class VagrantMixin(object):
     def get_metadata(self):
@@ -140,10 +155,10 @@ class BaseCluster(object):
         else:
             self.logger.critical('Unknown role: %s' % self.role)
             raise Exception('Unrecognised role: %s' % self.role)
+
         self.start_process()
-        # Poll the process until it either starts successfully, or fails. This will result
-        # in a call to process_started or process_failed.
-        self.poll_process()
+        # Call the hook function
+        self.process_started()
 
     def get_master_cname(self):
         """ Returns the CNAME of the master server for this cluster.
@@ -191,11 +206,9 @@ class BaseCluster(object):
         """
         raise NotImplementedError
 
-    def poll_process(self):
-        raise NotImplementedError
-
     def start_process(self):
-        """ Attempt to start the process (e.g. via supervisorctl).
+        """ Attempt to start the process (e.g. via supervisorctl). This should block
+            until the process has started, or raise an exception if it fails.
         """
         raise NotImplementedError
 
@@ -228,9 +241,6 @@ class ScriptCluster(BaseCluster):
     def prepare_slave(self):
         subprocess.check_call([SLAVE_SCRIPT, ])
 
-    def poll_process(self):
-        self.process_started()
-
 
 class PostgresqlCluster(EC2Mixin, BaseCluster):
     """ PostgreSQL cluster.
@@ -258,9 +268,6 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         """ Starts postgresql using the init.d scripts.
         """
         subprocess.check_call(['/etc/init.d/postgresql', 'start'])
-
-    def poll_process(self):
-        pass
 
     def write_recovery_conf(self, template_path):
         """ Using the template specified in settings, create a recovery.conf file in the
@@ -302,8 +309,6 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
     def prepare_master(self):
         """ Init postgres as a master.
         """
-        # TODO remove acquire call, this happens after proc is started
-        self.acquire_master_cname()
         self.write_recovery_conf(settings.RECOVERY_TEMPLATE_MASTER)
         self.configure_cron_backup()
         # TODO apply some tags here to show the role of the instance
@@ -313,8 +318,6 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         """
         self.write_recovery_conf(settings.RECOVERY_TEMPLATE_SLAVE)
         self.logger.info('Instance configured as a slave')
-        # TODO remove cname call, this happens after proc is started
-        self.add_to_slave_cname_pool()
         # TODO apply some tags here to show the role of the instance
 
 
@@ -397,6 +400,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
 
         # If we get here, then postgresql should have been successfully promoted.
         self.acquire_master_cname(force=True)
+        self.remove_from_slave_cname_pool()
 
         # Let's start doing backups
         self.configure_cron_backup()
