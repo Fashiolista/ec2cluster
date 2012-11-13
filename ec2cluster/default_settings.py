@@ -7,7 +7,7 @@ MASTER_CNAME_TTL = '60'
 SLAVE_CNAME_TTL = '60'
 
 # AWS settings
-ROUTE53_ZONE_ID = 'Z1Q3XCRU2HIT7F'
+ROUTE53_ZONE_ID = ''
 # TODO make an IAM policy template describing required permissions
 AWS_ACCESS_KEY_ID = ''
 AWS_SECRET_ACCESS_KEY = ''
