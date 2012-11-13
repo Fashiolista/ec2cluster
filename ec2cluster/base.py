@@ -10,7 +10,8 @@ import psycopg2
 import logging
 from crontab import CronTab
 
-from ec2cluster import default_settings as settings
+#from ec2cluster import default_settings as settings
+from ec2cluster import settings
 
 
 class EC2Mixin(object):
@@ -79,7 +80,7 @@ class EC2Mixin(object):
         try:
             changes.commit()
         except boto.route53.exception.DNSServerError, e:
-            if e.error_message.endswith('it already exists'):
+            if e.error_message is not None and e.error_message.endswith('it already exists'):
                 # This instance is already in the pool - carry on as normal.
                 self.logger.warning('Attempted to create a CNAME, but one already exists for this instance')
             else:
@@ -127,13 +128,10 @@ class BaseCluster(object):
     def get_metadata(self):
         raise NotImplementedError
 
-    def __init__(self, settings=None):
+    def __init__(self):
         self.logger = logging.getLogger('%s.%s' % (__name__, self.__class__.__name__))
         self.logger.warning('test')
 
-        if settings is None:
-            settings = {}
-        self.settings = settings
         self.metadata = self.get_metadata()
         self.master_cname = self.get_master_cname()
         self.slave_cname = self.get_slave_cname()
@@ -213,13 +211,11 @@ class BaseCluster(object):
         raise NotImplementedError
 
     def process_started(self):
-        if self.role == self.MASTER:
-            self.acquire_master_cname()
-        elif self.role == self.SLAVE:
-            self.add_to_slave_cname_pool()
+        pass
 
+    # Hook functions
     def process_failed(self):
-        print 'oh shit something broke'
+        pass
 
 
 # TODO settings
@@ -228,7 +224,7 @@ MASTER_SCRIPT = '/tmp/master.py'
 SLAVE_SCRIPT = '/tmp/slave.py'
 
 
-class ScriptCluster(BaseCluster):
+class ScriptCluster(VagrantMixin, BaseCluster):
     """ Basic cluster - simply runs scripts when preparing a master/slave, and
         starts a service via init.d scripts.
     """
@@ -264,6 +260,12 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
 
         return psycopg2.connect(conn_str)
 
+    def process_started(self):
+        if self.role == self.MASTER:
+            self.acquire_master_cname()
+        elif self.role == self.SLAVE:
+            self.add_to_slave_cname_pool()
+
     def start_process(self):
         """ Starts postgresql using the init.d scripts.
         """
@@ -274,7 +276,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
             postgres config dir.
         """
         self.logger.info('Writing recovery file using template %s' % template_path)
-        data = dict(self.metadata.items() + self.settings.items())
+        data = dict(self.metadata.items())
         data.update(
             {'master_cname': self.master_cname}
         )
