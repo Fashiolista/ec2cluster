@@ -40,6 +40,10 @@ class EC2Mixin(object):
             old_cname_value = answers.rrset.items[0].to_text()
             self.logger.info('%s already exists, so updating it' % self.master_cname)
 
+        if old_cname_value == '%s.' % self.metadata['public-hostname']:
+            self.logger.info('%s already points to this instance - not doing anything' % self.master_cname)
+            return
+
         if master_cname_exists == True and force == False:
             self.logger.critical('CNAME %s exists and force is false - exiting' % self.master_cname)
             raise Exception('CNAME %s exists and force is False - not taking the CNAME' % self.master_cname)
@@ -180,8 +184,7 @@ class BaseCluster(object):
             self.logger.info('Master CNAME does not exist, assuming master role')
             return self.MASTER
 
-        if answers.rrset.items[0].to_text() == self.metadata['public-hostname']:
-            # TODO this will cause acquire_master_cname to fail, as the CNAME already exists
+        if answers.rrset.items[0].to_text() == '%s.' % self.metadata['public-hostname']:
             self.logger.info('Master CNAME exists and is pointing to this host, assuming master role')
             return self.MASTER
 
@@ -269,6 +272,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
     def process_started(self):
         if self.role == self.MASTER:
             self.acquire_master_cname()
+            self.configure_cron_backup()
         elif self.role == self.SLAVE:
             self.add_to_slave_cname_pool()
 
@@ -318,7 +322,6 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         """ Init postgres as a master.
         """
         self.write_recovery_conf(settings.RECOVERY_TEMPLATE_MASTER)
-        self.configure_cron_backup()
         # TODO apply some tags here to show the role of the instance
 
     def prepare_slave(self):
