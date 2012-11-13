@@ -96,7 +96,7 @@ class EC2Mixin(object):
         route53_conn = self._get_route53_conn()
         changes = ResourceRecordSets(route53_conn, settings.ROUTE53_ZONE_ID)
 
-        self.logger.info('Adding %s to CNAME pool for %s' % (self.metadata['instance-id'], self.slave_cname))
+        self.logger.info('Removing  %s from CNAME pool for %s' % (self.metadata['instance-id'], self.slave_cname))
         del_record = changes.add_change('DELETE',
             self.slave_cname,
             'CNAME',
