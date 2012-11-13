@@ -8,10 +8,9 @@ SLAVE_CNAME_TTL = '60'
 
 # AWS settings
 ROUTE53_ZONE_ID = 'Z1Q3XCRU2HIT7F'
-# TODO use proper keys with correct perms, these just have route53 perms.
-# make an IAM policy template describing required permissions
-AWS_ACCESS_KEY_ID = 'AKIAJQK7ZX65SKSWD74Q'
-AWS_SECRET_ACCESS_KEY = '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'
+# TODO make an IAM policy template describing required permissions
+AWS_ACCESS_KEY_ID = ''
+AWS_SECRET_ACCESS_KEY = ''
 
 
 # Postgres settings
