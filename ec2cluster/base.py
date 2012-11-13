@@ -38,11 +38,10 @@ class EC2Mixin(object):
         else:
             master_cname_exists = True
             old_cname_value = answers.rrset.items[0].to_text()
+            if old_cname_value == '%s.' % self.metadata['public-hostname']:
+                self.logger.info('%s already points to this instance - not doing anything' % self.master_cname)
+                return
             self.logger.info('%s already exists, so updating it' % self.master_cname)
-
-        if old_cname_value == '%s.' % self.metadata['public-hostname']:
-            self.logger.info('%s already points to this instance - not doing anything' % self.master_cname)
-            return
 
         if master_cname_exists == True and force == False:
             self.logger.critical('CNAME %s exists and force is false - exiting' % self.master_cname)
