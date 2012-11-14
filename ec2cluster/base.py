@@ -337,10 +337,10 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
             This is a safety check to avoid promoting a slave when we already have a
             master in the cluster.
         """
-        # TODO untested
         self.logger.info('Checking master DB at %s' % self.master_cname)
         try:
-            conn = self._get_conn(host=self.master_cname)
+            # for this to work, root user must ave a pgpass file
+            conn = self._get_conn(host=self.master_cname, user='postgres')
         except psycopg2.OperationalError:
             self.logger.info('Connecting to master failed')
             return False
