@@ -348,18 +348,12 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         cur = conn.cursor()
         cur.execute('SELECT pg_is_in_recovery()')
         res = cur.fetchone()
-        if res == 't':
+        if str(res) == '(True,)':
             # We server we connected to thinks it is a slave
+            self.logger.warning('%s thinks it is a slave' % self.master_cname)
             return False
-
-        # Perform a basic query to make sure postgresql is operational
-        cur.execute('SELECT 1')
-        res = cur.fetchone()
-        if res == '1':
+        elif str(res) == '(False,)':
             return True
-
-        # If we get here, something went wrong
-        return False
 
     def check_slave(self):
         """ Returns true if there is a postgresql server running on localhost, and
