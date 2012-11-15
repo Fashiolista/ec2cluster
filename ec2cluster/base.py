@@ -303,7 +303,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         """
         backup_cmd = 'PATH=/usr/local/bin:/usr/sbin snaptastic make-snapshots postgresql'
 
-        cron = CronTab('postgres')
+        cron = CronTab('root')
 
         # check if this job already exists - this is not perfect, but should stop us from running
         # the exact same multiple times simultaneously
