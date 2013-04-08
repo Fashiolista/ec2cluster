@@ -12,13 +12,13 @@ CLASSIFIERS = [
 ]
 
 install_requires = [
-    'mock',
-    'unittest2',
-    'boto',
-    'dnspython',
-    'python-crontab',
-    'psycopg2',
-    'argh',
+    'mock==1.0.1',
+    'unittest2==0.5.1',
+    'boto==2.8.0',
+    'dnspython==1.10.0',
+    'python-crontab==1.2',
+    'psycopg2==2.5',
+    'argh==0.23.1',
 ]
 
 setup(
