@@ -274,7 +274,10 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
             self.acquire_master_cname()
             self.configure_cron_backup()
         elif self.role == self.SLAVE:
-            self.add_to_slave_cname_pool()
+            pass
+            # Disabling this until we have a reliable method of making sure
+            # slave is actually operational
+            #self.add_to_slave_cname_pool()
 
     def start_process(self):
         """ Starts postgresql using the init.d scripts.
