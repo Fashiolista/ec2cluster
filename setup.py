@@ -13,6 +13,7 @@ CLASSIFIERS = [
 
 install_requires = [
     'mock>=1.0.1',
+    'python-dateutil>=2.1',
     'unittest2>=0.5.1',
     'boto>=2.6.0',
     'dnspython>=1.10.0',
