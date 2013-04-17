@@ -106,6 +106,7 @@ class EC2Mixin(object):
         del_record.add_value(self.metadata['public-hostname'])
         changes.commit()
 
+
 class VagrantMixin(object):
     def get_metadata(self):
         data = os.environ
@@ -329,7 +330,6 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         self.write_recovery_conf(settings.RECOVERY_TEMPLATE_SLAVE)
         self.logger.info('Instance configured as a slave')
         # TODO apply some tags here to show the role of the instance
-
 
     def check_master(self):
         """ Returns true if there is a postgresql server running on the master CNAME
