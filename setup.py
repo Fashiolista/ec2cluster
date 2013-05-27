@@ -12,14 +12,17 @@ CLASSIFIERS = [
 ]
 
 install_requires = [
-    'mock>=1.0.1',
     'python-dateutil>=2.1',
-    'unittest2>=0.5.1',
     'boto>=2.6.0',
     'dnspython>=1.10.0',
     'python-crontab>=1.2',
     'psycopg2>=2.4.5',
     'argh>=0.23.1',
+]
+
+test_requires = [
+    'mock>=1.0.1',
+    'unittest2>=0.5.1',
 ]
 
 setup(
@@ -33,6 +36,7 @@ setup(
     packages=find_packages(exclude=("tests",)),
     zip_safe=False,
     install_requires=install_requires,
+    test_requires=test_requires,
     test_suite='ec2cluster.tests',
     include_package_data=True,
     classifiers=CLASSIFIERS,
