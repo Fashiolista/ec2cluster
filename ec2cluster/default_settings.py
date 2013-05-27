@@ -1,8 +1,8 @@
 
 
 # Generic settings
-MASTER_CNAME = 'master.%(cluster)s.goteam.be'
-SLAVE_CNAME = 'slave.%(cluster)s.goteam.be'
+MASTER_CNAME = 'master.%(cluster)s.example.com'
+SLAVE_CNAME = 'slave.%(cluster)s.example.com'
 MASTER_CNAME_TTL = '60'
 SLAVE_CNAME_TTL = '60'
 
