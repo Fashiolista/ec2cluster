@@ -6,7 +6,6 @@ import dns
 import dns.resolver
 import os
 import subprocess
-import psycopg2
 import logging
 from crontab import CronTab
 
@@ -267,6 +266,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
         if user:
             conn_str += 'user=%s ' % user
 
+        import psycopg2
         return psycopg2.connect(conn_str)
 
     def process_started(self):
@@ -340,6 +340,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
             This is a safety check to avoid promoting a slave when we already have a
             master in the cluster.
         """
+        import psycopg2
         self.logger.info('Checking master DB at %s' % self.master_cname)
         try:
             # for this to work, root user must ave a pgpass file
@@ -376,6 +377,7 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
 
             If force is True, safety checks are ignored and the promotion is forced.
         """
+        import psycopg2
         try:
             active_master = self.check_master()
         except psycopg2.OperationalError, e:
@@ -411,3 +413,15 @@ class PostgresqlCluster(EC2Mixin, BaseCluster):
 
         # Let's start doing backups
         self.configure_cron_backup()
+
+class CassandraCluster(EC2Mixin, BaseCluster):
+    """ Cassandra cluster.
+
+    """
+    def process_started(self):
+        self.add_to_slave_cname_pool()
+
+    def start_process(self):
+        """ Starts postgresql using the init.d scripts.
+        """
+        subprocess.check_call(['/etc/init.d/cassandra', 'start'])
