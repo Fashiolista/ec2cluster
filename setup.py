@@ -16,7 +16,6 @@ install_requires = [
     'boto>=2.6.0',
     'dnspython>=1.10.0',
     'python-crontab>=1.2',
-    'psycopg2>=2.4.5',
     'argh>=0.23.1',
 ]
 
