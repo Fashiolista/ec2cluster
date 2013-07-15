@@ -1,10 +1,19 @@
 import logging
 import utils
 import argparse
-from ec2cluster.base import PostgresqlCluster
+from ec2cluster.base import PostgresqlCluster, CassandraCluster
 
 
 logger = logging.getLogger('ec2cluster')
+
+
+
+def init_cassandra(args):
+    """ Initialise this instance as a master or slave.
+    """
+    print 'init_cassandra'
+    cluster = CassandraCluster()
+    cluster.initialise()
 
 
 def promote(args):
@@ -51,6 +60,11 @@ def main():
     parser_init = subparsers.add_parser('init', help='Initialise the cluster')
     parser_init.add_argument('--bar', help='init arg')
     parser_init.set_defaults(func=init)
+
+    # init_cassandra command
+    parser_init_cassandra = subparsers.add_parser('init_cassandra', help='Initialise the cassandra cluster')
+    parser_init_cassandra.add_argument('--bar', help='init_cassandra arg')
+    parser_init_cassandra.set_defaults(func=init_cassandra)
 
     # promote command
     parser_promote = subparsers.add_parser('promote', help='Promote a slave')
